@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Cosméticos Pro - Chat Nancy</title>
+<style>
+body{font-family:Arial,sans-serif;background:#f2f2f2;margin:0;padding:0;}
+header{background:#e91e63;color:#fff;padding:20px;text-align:center;}
+header h2{margin:0;font-size:28px;}
+#filtros{padding:10px;text-align:center;background:#fff;margin-top:5px;}
+#filtros select,#filtros input,#filtros button{padding:5px;margin:0 5px;border-radius:5px;border:1px solid #ccc;}
+#filtros button{background:#e91e63;color:#fff;border:none;cursor:pointer;}
+.container{display:flex;flex-wrap:wrap;justify-content:center;padding:20px;}
+.card{background:#fff;width:200px;margin:15px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,0.1);padding:15px;text-align:center;position:relative;}
+.card img{width:100%;border-radius:10px;height:150px;object-fit:cover;}
+.card h4{margin:10px 0 5px;}
+.card p{margin:0;font-size:14px;}
+.card button{background:#e91e63;color:#fff;border:none;padding:10px;border-radius:5px;cursor:pointer;margin-top:10px;width:100%;}
+.popular{position:absolute;top:10px;right:10px;background:#ff9800;color:#fff;padding:3px 6px;font-size:12px;border-radius:3px;font-weight:bold;}
+
+#carrito{position:fixed;top:20px;right:20px;background:#fff;padding:20px;border-radius:10px;box-shadow:0 0 15px rgba(0,0,0,0.3);width:300px;max-height:80vh;overflow-y:auto;}
+#carrito h4{margin-top:0;}
+.qty{width:40px;margin-left:5px;}
+.delete{background:red;color:#fff;padding:3px 6px;border:none;border-radius:3px;cursor:pointer;}
+.checkout{background:#4caf50;color:#fff;padding:10px;border:none;border-radius:5px;cursor:pointer;margin-top:10px;width:100%;}
+#btnAbrirChat{background:#2196f3;color:#fff;padding:10px;border:none;border-radius:5px;width:100%;margin-top:10px;cursor:pointer;}
+
+#chat{position:fixed;bottom:20px;left:20px;width:320px;background:#fff;border-radius:10px;box-shadow:0 0 15px rgba(0,0,0,0.2);display:none;flex-direction:column;}
+#chatMessages{height:300px;overflow:auto;padding:10px;font-size:13px;display:flex;flex-direction:column;}
+.bubble{padding:10px 14px;margin:5px 0;border-radius:15px;max-width:80%;word-wrap:break-word;position:relative;opacity:0;animation:fadeIn 0.3s forwards;}
+.bot{background:#e0e0e0;color:#000;align-self:flex-start;border-bottom-left-radius:0;}
+.cliente{background:#2196f3;color:#fff;align-self:flex-end;border-bottom-right-radius:0;}
+.bubble img.iconoProducto{width:20px;height:20px;margin-right:5px;vertical-align:middle;border-radius:50%;}
+.typing{font-style:italic;color:#888;font-size:12px;margin-left:5px;}
+
+@keyframes fadeIn{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
+
+#chatForm{padding:10px;display:flex;flex-direction:column;}
+#chatForm input{width:100%;padding:8px;margin:5px 0;border-radius:5px;border:1px solid #ccc;}
+#chatForm button{width:100%;padding:10px;background:#4caf50;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-top:5px;}
+
+/* Mensaje flotante */
+#mensajeFlotante {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #ff9800;
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    font-weight: bold;
+    display: none;
+    z-index: 9999;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+</style>
+</head>
+<body>
+
+<header>
+<h2>Cosméticos Pro 💄</h2>
+<p>Tienda con asistente Nancy</p>
+</header>
+
+<div id="filtros">
+<label>Categoría:</label>
+<select id="selectCategoria"><option value="Todas">Todas</option></select>
+<label>Precio Min:</label><input type="number" id="precioMin" placeholder="0">
+<label>Max:</label><input type="number" id="precioMax" placeholder="1000">
+<button id="btnFiltrar">Filtrar</button>
+</div>
+
+<div class="container" id="productos"></div>
+
+<div id="carrito">
+<h4>🛒 Carrito</h4>
+<div id="listaCarrito"></div>
+<b>Total: $<span id="total">0</span></b><br>
+<button class="checkout" id="btnImprimirManual">🖨️ Imprimir Pedido</button>
+<button class="delete" id="btnVaciar">Vaciar Carrito</button>
+<button id="btnAbrirChat">💬 Abrir Chat</button>
+</div>
+
+<!-- Chat Nancy -->
+<div id="chat">
+<div id="chatMessages"></div>
+<div id="chatForm"></div>
+</div>
+
+<!-- Mensaje flotante -->
+<div id="mensajeFlotante"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+const firebaseConfig = { apiKey: "AIzaSyC4FVokHFRbbTc4rBifNyt5bvOX2CuzkWw",
+  authDomain: "calificaciones-9f753.firebaseapp.com",
+  databaseURL: "https://calificaciones-9f753-default-rtdb.firebaseio.com",
+  projectId: "calificaciones-9f753",
+  storageBucket: "calificaciones-9f753.firebasestorage.app",
+  messagingSenderId: "907008005737",
+  appId: "1:907008005737:web:3069998b0bad883cc574f8" };
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+let INVENTARIO=[],CARRITO=[],CATEGORIAS=[],cliente={nombre:"",direccion:"",telefono:""};
+let pasoFormulario=0;
+
+// Mensaje flotante
+function mostrarMensajeFlotante(texto) {
+    const mensaje = document.getElementById('mensajeFlotante');
+    mensaje.innerText = texto;
+    mensaje.style.display = 'block';
+    setTimeout(() => { mensaje.style.opacity = 1; }, 10); // fade in
+    setTimeout(() => {
+        mensaje.style.opacity = 0; // fade out
+        setTimeout(() => { mensaje.style.display = 'none'; }, 300);
+    }, 2000);
+}
+
+// Mensajes chat
+async function agregarMsg(texto,tipo='bot',icono=''){
+    const cont=document.getElementById('chatMessages'); 
+    if(tipo==='bot'){
+        const typing = document.createElement('div');
+        typing.className='typing';
+        typing.innerText='Nancy está escribiendo...';
+        cont.appendChild(typing);
+        cont.scrollTop=cont.scrollHeight;
+        await new Promise(r=>setTimeout(r, 800 + Math.random()*800)); 
+        cont.removeChild(typing);
+    }
+    let div=document.createElement('div'); 
+    div.className='bubble '+tipo;
+    if(icono) div.innerHTML=`<img src="${icono}" class="iconoProducto"> ${texto}`; 
+    else div.innerHTML=texto;
+    cont.appendChild(div);
+    cont.scrollTop=cont.scrollHeight;
+}
+
+function renderCarrito(){
+    const cont=document.getElementById('listaCarrito'); 
+    const totalSpan=document.getElementById('total'); 
+    cont.innerHTML=""; 
+    let total=0;
+    CARRITO.forEach((p,i)=>{let sub=p.precio*p.cantidad;total+=sub;
+    cont.innerHTML+=`<div>${p.producto} x<input class='qty' value='${p.cantidad}' onchange='window.cambiarCantidad(${i},this.value)'> = $${sub} <button class='delete' onclick='window.eliminarItem(${i})'>X</button></div><hr>`;});
+    totalSpan.innerText=total;
+}
+
+function agregarCarrito(producto,precio,cantidad=1){let item=CARRITO.find(p=>p.producto===producto);if(item)item.cantidad+=cantidad;else CARRITO.push({producto,precio,cantidad});renderCarrito();}
+function eliminarItem(i){CARRITO.splice(i,1);renderCarrito();}
+function vaciarCarrito(){CARRITO=[];renderCarrito();}
+function cambiarCantidad(i,val){CARRITO[i].cantidad=parseInt(val)||1;renderCarrito();}
+function imprimirTicket(){if(CARRITO.length===0)return alert("Carrito vacío");let ticket=window.open('','_blank','width=300,height=600');ticket.document.write('<html><head><title>Ticket</title></head><body>');ticket.document.write('<h3>🛒 Pedido Cosméticos</h3><hr>');let total=0;CARRITO.forEach(p=>{let sub=p.precio*p.cantidad;total+=sub;ticket.document.write('<div>'+p.nombre+' x'+p.cantidad+' = $'+sub+'</div>');});ticket.document.write('<hr><b>Total: $'+total+'</b>');ticket.document.close();ticket.print();}
+
+// Cargar productos
+async function cargarProductos(){
+    const cont=document.getElementById('productos'); cont.innerHTML=""; INVENTARIO=[]; CATEGORIAS=[];
+    const snap=await getDocs(collection(db,"productos"));
+    snap.forEach(d=>{let p=d.data();INVENTARIO.push(p);if(p.categoria&&!CATEGORIAS.includes(p.categoria))CATEGORIAS.push(p.categoria);});
+    CATEGORIAS.unshift("Todas"); mostrarCategorias(); mostrarProductos(INVENTARIO);
+}
+
+function mostrarCategorias(){const select=document.getElementById('selectCategoria');select.innerHTML="";CATEGORIAS.forEach(cat=>{select.innerHTML+=`<option value="${cat}">${cat}</option>`;});}
+function filtrarProductos(){let cat=document.getElementById('selectCategoria').value;let min=parseFloat(document.getElementById('precioMin').value)||0;let max=parseFloat(document.getElementById('precioMax').value)||Infinity;let filtrados=INVENTARIO.filter(p=>{return (cat==='Todas'?true:p.categoria===cat)&&p.precio>=min&&p.precio<=max;});mostrarProductos(filtrados);}
+function mostrarProductos(productos){const cont=document.getElementById('productos');cont.innerHTML="";productos.forEach(p=>{cont.innerHTML+=`<div class="card">${p.popular?'<div class="popular">🔥 Popular</div>':''}<img src="${p.imagen||'https://via.placeholder.com/200x150?text='+encodeURIComponent(p.producto)}" alt="${p.producto}"><h4>${p.producto}</h4><p>$${p.precio}</p><button onclick='window.agregarCarrito("${p.producto}",${p.precio})'>Agregar al carrito</button></div>`;});}
+
+// Chat Nancy
+function abrirChat(){
+    const chat=document.getElementById('chat'); 
+    chat.style.display='flex'; 
+    const formDiv = document.getElementById('chatForm');
+    formDiv.innerHTML = ""; 
+
+    if(CARRITO.length === 0){
+        mostrarMensajeFlotante("👋 Hola! Soy Nancy, para poder realizar el pedido primero agrega al menos un producto al carrito. ¡Gracias!"); 
+        return; 
+    }
+
+    pasoFormulario = 0; 
+    cliente = {nombre:"",direccion:"",telefono:""};
+    agregarMsg("👋 Hola soy Nancy; tu asistente virtual, para concluir tu pedido ingresa los siguientes datos. ¡Gracias!","bot");
+    mostrarPasoFormulario();
+}
+
+function mostrarPasoFormulario(){
+    const formDiv=document.getElementById('chatForm'); 
+    formDiv.innerHTML="";
+    if(pasoFormulario===0){
+        formDiv.innerHTML=`<input type="text" id="inputNombre" placeholder="Nombre o Empresa"><button id="btnSiguiente">Siguiente</button>`;
+        document.getElementById('btnSiguiente').onclick=()=>{
+            let val=document.getElementById('inputNombre').value.trim();
+            if(!val){alert("Completa tu nombre");return;}
+            cliente.nombre=val; pasoFormulario++;
+            agregarMsg(val,'cliente','https://img.icons8.com/color/48/000000/user.png');
+            agregarMsg("📍 Ingresa tu dirección:",'bot');
+            mostrarPasoFormulario();
+        };
+    } else if(pasoFormulario===1){
+        formDiv.innerHTML=`<input type="text" id="inputDireccion" placeholder="Dirección"><button id="btnSiguiente">Siguiente</button>`;
+        document.getElementById('btnSiguiente').onclick=()=>{
+            let val=document.getElementById('inputDireccion').value.trim();
+            if(!val){alert("Completa tu dirección");return;}
+            cliente.direccion=val; pasoFormulario++;
+            agregarMsg(val,'cliente','https://img.icons8.com/color/48/000000/home.png');
+            agregarMsg("📞 Ingresa tu teléfono:",'bot');
+            mostrarPasoFormulario();
+        };
+    } else if(pasoFormulario===2){
+        formDiv.innerHTML=`<input type="tel" id="inputTelefono" placeholder="Teléfono"><button id="btnSiguiente">Siguiente</button>`;
+        document.getElementById('btnSiguiente').onclick=()=>{
+            let val=document.getElementById('inputTelefono').value.trim();
+            if(!val){alert("Completa tu teléfono");return;}
+            cliente.telefono=val; pasoFormulario++;
+            agregarMsg(val,'cliente','https://img.icons8.com/color/48/000000/phone.png');
+            mostrarResumenPedido();
+        };
+    }
+}
+
+function mostrarResumenPedido(){
+    const formDiv=document.getElementById('chatForm'); 
+    formDiv.innerHTML="<b>📋 Resumen de tu pedido:</b><br>";
+    let total=0;
+    CARRITO.forEach(p=>{let sub=p.precio*p.cantidad;total+=sub; formDiv.innerHTML+=`<img src='https://img.icons8.com/color/48/000000/cosmetics.png' class='iconoProducto'>${p.producto} x${p.cantidad} = $${sub}<br>`;});
+    formDiv.innerHTML+=`<hr><b>Total: $${total}</b><br>`;
+    formDiv.innerHTML+=`<hr><b>Datos de entrega:</b><br>👤 ${cliente.nombre}<br>🏠 ${cliente.direccion}<br>📞 ${cliente.telefono}<br>`;
+    formDiv.innerHTML+=`<button id="btnConfirmar">✅ Confirmar Pedido</button>`;
+    document.getElementById('btnConfirmar').onclick=async()=>{
+        const pedido={cliente,CARRITO,total,fecha:new Date().toISOString()};
+        await addDoc(collection(db,"pedidos"),pedido);
+        agregarMsg("🎉 Pedido confirmado y guardado correctamente. ¡Gracias por tu compra!","bot");
+        CARRITO=[]; renderCarrito(); 
+        cliente={nombre:"",direccion:"",telefono:""};
+        formDiv.innerHTML="";
+        setTimeout(()=>{document.getElementById('chat').style.display='none'; document.getElementById('chatMessages').innerHTML='';},1500);
+    };
+}
+
+document.getElementById('btnFiltrar').onclick=filtrarProductos;
+document.getElementById('selectCategoria').onchange=filtrarProductos;
+document.getElementById('btnVaciar').onclick=vaciarCarrito;
+document.getElementById('btnImprimirManual').onclick=imprimirTicket;
+document.getElementById('btnAbrirChat').onclick=abrirChat;
+
+window.agregarCarrito=agregarCarrito; window.eliminarItem=eliminarItem; window.vaciarCarrito=vaciarCarrito; window.cambiarCantidad=cambiarCantidad;
+
+cargarProductos();
+</script>
+</body>
+</html>
